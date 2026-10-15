@@ -2,8 +2,16 @@ import { useCallback, useEffect, useState } from "react";
 import { api, type ImportResult, type PublicMailbox } from "./api";
 import { navigate } from "./App";
 
-const PLACEHOLDER = `support@example.com----P@ssw0rd----9e5f94bc-e8a4-4e73-b8be-63364c29d753----M.C507_BAY.0.U.MsaArtifacts.-xxxx
-// 以 # 开头的行和空行会被忽略；每行只取前 4 段，多余参数忽略`;
+const PLACEHOLDER_LINES = `support@example.com----P@ssw0rd----9e5f94bc-e8a4-4e73-b8be-63364c29d753----M.C507_BAY.0.U.MsaArtifacts.-xxxx
+# 以 # 开头的行和空行会被忽略；每行只取前 4 段，多余参数忽略`;
+
+const PLACEHOLDER_JSON = `// 单个对象 / 对象数组 / 每行一个 JSON 都支持
+// email 从 client_info(base64) 或 id_token 里解，client_id 取显式 client_id 或 id_token.aud
+{
+  "refresh_token": "M.C532_BAY.0.U.MsaArtifacts.-xxxx",
+  "client_info": "eyJlbWFpbCI6InN1cHBvcnRAZXhhbXBsZS5jb20ifQ",
+  "id_token": "eyJhdWQiOiI5ZTVmOTRiYy1lOGE0LTRlNzMtYjhiZS02MzM2NGMyOWQ3NTMifQ.x.y"
+}`;
 
 function fmtTime(ms: number | null): string {
   if (!ms) return "—";
@@ -15,6 +23,7 @@ function fmtTime(ms: number | null): string {
 
 export function Admin() {
   const [text, setText] = useState("");
+  const [format, setFormat] = useState<"auto" | "lines" | "json">("auto");
   const [boxes, setBoxes] = useState<PublicMailbox[]>([]);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [importing, setImporting] = useState(false);
@@ -32,13 +41,13 @@ export function Admin() {
 
   const doImport = async () => {
     if (!text.trim()) {
-      setError("请先粘贴要导入的邮箱");
+      setError("请先粘贴要导入的内容");
       return;
     }
     setImporting(true);
     setError(null);
     try {
-      const r = await api.importMailboxes(text);
+      const r = await api.importMailboxes(text, format);
       setResult(r);
       await reload();
     } catch (e) {
@@ -88,20 +97,29 @@ export function Admin() {
       <section className="card">
         <h2>批量导入邮箱</h2>
         <p className="muted">
-          每行一条：<code>email----password----clientid----refreshtoken</code>。导入时会用 refresh token 换取 access
-          token，换取失败该行报错并跳过（不入库）；成功则保存 access token 与轮换后的新 refresh token。
+          支持两种格式：<code>email----password----clientid----refreshtoken</code>（每行一条，只取前 4 段），
+          或直接粘贴 OAuth token 响应 JSON（email 从 <code>client_info</code> base64 解出，client_id 取 <code>id_token.aud</code>）。
+          导入时会用 refresh token 换取 access token，换取失败该行报错并跳过（不入库）；成功则保存 access token 与轮换后的新 refresh token。
         </p>
         <textarea
           className="ta"
           value={text}
           spellCheck={false}
-          placeholder={PLACEHOLDER}
+          placeholder={format === "json" ? PLACEHOLDER_JSON : PLACEHOLDER_LINES}
           onChange={(e) => setText(e.target.value)}
         />
         <div className="row">
           <button className="btn primary" disabled={importing} onClick={doImport}>
             {importing ? "导入中…" : "导入"}
           </button>
+          <label className="muted">
+            格式
+            <select className="input" value={format} onChange={(e) => setFormat(e.target.value as "auto" | "lines" | "json")}>
+              <option value="auto">自动识别</option>
+              <option value="lines">文本行（----分隔）</option>
+              <option value="json">JSON（token 响应）</option>
+            </select>
+          </label>
           <button className="btn" disabled={importing} onClick={() => { setText(""); setResult(null); setError(null); }}>
             清空
           </button>
@@ -113,13 +131,13 @@ export function Admin() {
         {result && (
           <>
             <div className="banner">
-              总计 {result.total} 行 · 成功 <b className="ok">{result.ok}</b> · 失败{" "}
-              <b className="bad">{result.failed}</b> · 忽略多余参数 {result.ignoredParams} 个
+              解析格式 <b>{result.format === "json" ? "JSON" : "文本行"}</b> · 总计 {result.total} 条 · 成功{" "}
+              <b className="ok">{result.ok}</b> · 失败 <b className="bad">{result.failed}</b> · 忽略多余参数 {result.ignoredParams} 个
             </div>
             <div className="table-wrap">
             <table className="table">
               <thead>
-                <tr><th>行</th><th>email</th><th>结果</th><th>说明</th></tr>
+                <tr><th>条目</th><th>email</th><th>结果</th><th>说明</th></tr>
               </thead>
               <tbody>
                 {result.items.map((it) => (

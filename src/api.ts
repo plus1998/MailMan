@@ -48,11 +48,15 @@ export async function handleApi(req: Request, url: URL): Promise<Response> {
     }
 
     if (route === "POST /api/mailboxes/import") {
-      const body = (await req.json().catch(() => null)) as { text?: unknown; concurrency?: unknown } | null;
+      const body = (await req.json().catch(() => null)) as { text?: unknown; concurrency?: unknown; format?: unknown } | null;
       const text = typeof body?.text === "string" ? body.text : null;
-      if (!text || !text.trim()) return badRequest("请求体缺少 text（多行 email----password----clientid----refreshtoken）");
+      if (!text || !text.trim()) return badRequest("请求体缺少 text（多行 email----password----clientid----refreshtoken，或 OAuth token 响应 JSON）");
+      const format = typeof body?.format === "string" ? body.format : "auto";
+      if (format !== "auto" && format !== "lines" && format !== "json") {
+        return badRequest(`format 只支持 auto / lines / json，收到：${format}`);
+      }
       const concurrency = typeof body?.concurrency === "number" ? body.concurrency : undefined;
-      const result = await importMailboxes(text, concurrency);
+      const result = await importMailboxes(text, concurrency, format);
       return json(result);
     }
 

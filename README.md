@@ -18,11 +18,12 @@ bun run dev          # http://localhost:3000  （PORT=3000 默认，--watch 热�
 
 <table>
   <tr>
-    <td width="50%">管理页 <code>/admin</code>：批量导入、逐行结果（成功/失败原因）、邮箱列表<br><img src="docs/screenshots/admin.png" alt="管理页" width="100%"></td>
-    <td width="50%">收件箱 <code>/inbox?email=xxx</code>（宽屏：左列表 / 右正文）<br><img src="docs/screenshots/inbox-wide.png" alt="收件箱宽屏" width="100%"></td>
+    <td width="50%">管理页 <code>/admin</code>：文本行批量导入、逐行结果、邮箱列表<br><img src="docs/screenshots/admin.png" alt="管理页" width="100%"></td>
+    <td width="50%">管理页：JSON 导入（直接粘 OAuth token 响应）<br><img src="docs/screenshots/admin-json.png" alt="管理页 JSON 导入" width="100%"></td>
   </tr>
   <tr>
-    <td colspan="2">收件箱窄屏（≤900px）：正文改为全屏弹窗，<code>Esc</code> 或 <code>×</code> 关闭<br><img src="docs/screenshots/inbox-narrow.png" alt="收件箱窄屏弹窗" width="420"></td>
+    <td width="50%">收件箱 <code>/inbox?email=xxx</code>（宽屏：左列表 / 右正文）<br><img src="docs/screenshots/inbox-wide.png" alt="收件箱宽屏" width="100%"></td>
+    <td width="50%">收件箱窄屏（≤900px）：正文改为全屏弹窗，<code>Esc</code> 或 <code>×</code> 关闭<br><img src="docs/screenshots/inbox-narrow.png" alt="收件箱窄屏弹窗" width="60%"></td>
   </tr>
 </table>
 
@@ -30,11 +31,38 @@ bun run dev          # http://localhost:3000  （PORT=3000 默认，--watch 热�
 
 ## 导入格式
 
+管理页可选解析格式（默认**自动识别**：内容以 `{` / `[` 开头走 JSON，否则走文本行）。
+
+### 格式 A：文本行
+
 每行一条，`----` 分隔，**只取前 4 段，多余参数忽略**；空行与 `#` 开头的行跳过：
 
 ```
 email----password----clientid----refreshtoken
 ```
+
+### 格式 B：JSON（直接粘 OAuth token 响应）
+
+支持**单个对象**、**对象数组**、**每行一个 JSON**（JSON Lines）：
+
+```jsonc
+{
+  "refresh_token": "M.C532_BAY.0.U.MsaArtifacts.-xxxx",
+  "client_info": "<base64url>",   // 解出 email / preferred_username
+  "id_token":    "<JWT>"          // aud 作为 client_id
+}
+```
+
+字段来源优先级：
+
+| 字段 | 取值顺序 |
+| --- | --- |
+| email | 显式 `email` → `client_info.email` → `client_info.preferred_username` → `id_token.email` → `id_token.preferred_username` |
+| client_id | 显式 `client_id` → `id_token.aud`（`client_info` 里没有 client_id） |
+| refresh_token | `refresh_token`（必需） |
+| password | 显式 `password` / `account`（可选，仅保存不使用） |
+
+解不出 email 或 client_id 时，该条目直接报错并说明原因（不静默兜底）；JSON 语法错误也作为条目错误返回，不抛 500。
 
 导入流程（`POST /api/mailboxes/import`，默认并发 4）：
 
@@ -61,7 +89,7 @@ email----password----clientid----refreshtoken
 | --- | --- | --- |
 | GET | `/api/health` | 存活 + 邮箱数 |
 | GET | `/api/mailboxes` | 邮箱列表（不返回 token 明文） |
-| POST | `/api/mailboxes/import` | body `{ text, concurrency? }` |
+| POST | `/api/mailboxes/import` | body `{ text, format?: "auto"\|"lines"\|"json", concurrency? }`，响应含实际 `format` |
 | POST | `/api/mailboxes/refresh?email=` | 强制刷新 access token |
 | DELETE | `/api/mailboxes?email=` | 删除邮箱 |
 | GET | `/api/messages?email=&folder=Inbox&top=20&skip=0` | 邮件列表 |
@@ -108,3 +136,4 @@ bun run typecheck  # tsc --noEmit
 - 仅 Outlook；Gmail 等需要各自的 provider 适配层。
 - 基于 Outlook REST API v2.0（微软已宣布退役，后续应迁到 Microsoft Graph `/me/messages`，接口层已集中在 `src/outlook.ts`，替换成本低）。
 - token 明文存于 `data/mailman.sqlite`（已在 `.gitignore` 中）。
+- JSON 导入的 token 常见 `scope` 是 `service::outlook.office.com::MBI_SSL`，刷新时我们固定请求 `https://outlook.office.com/mail.read offline_access`；若上游拒绝该 scope 切换，错误会原样返回（`invalid_grant` / `AADSTSxxxx`），需要改用对应 scope 或重新取 token。

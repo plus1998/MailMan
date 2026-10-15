@@ -48,6 +48,7 @@ export type ImportResult = {
   ok: number;
   failed: number;
   ignoredParams: number;
+  format: "lines" | "json";
   items: ImportItem[];
 };
 
@@ -72,11 +73,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   listMailboxes: () => request<{ mailboxes: PublicMailbox[] }>("/api/mailboxes"),
 
-  importMailboxes: (text: string) =>
+  importMailboxes: (text: string, format: "auto" | "lines" | "json" = "auto") =>
     request<ImportResult>("/api/mailboxes/import", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text, format }),
     }),
 
   refresh: (email: string) =>

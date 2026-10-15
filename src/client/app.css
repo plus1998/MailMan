@@ -81,6 +81,7 @@ main { display: flex; flex-direction: column; gap: 16px; }
 .mailbox-table th:nth-child(3), .mailbox-table td:nth-child(3) { min-width: 150px; white-space: nowrap; }
 .mailbox-table th:nth-child(5), .mailbox-table td:nth-child(5) { white-space: nowrap; }
 .acts { white-space: nowrap; }
+.mailbox-table td:first-child { white-space: nowrap; }
 /* client_id / token 过期时间：次要信息 */
 .meta, .mailbox-table td.meta { color: var(--muted); font-size: 12px; }
 .mailbox-table td.meta.mono { font-size: 12px; }

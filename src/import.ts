@@ -1,9 +1,9 @@
 import { saveTokens, setMailboxError, upsertMailbox } from "./db";
 import { OutlookError, refreshAccessToken } from "./outlook";
-import { parseImportText, type ParsedLineOk } from "./parse";
+import { parseImportInput, type ImportFormat, type ParsedLineOk } from "./parse";
 
-export { DELIMITER, parseImportText, parseLine } from "./parse";
-export type { ParsedLine, ParsedLineErr, ParsedLineOk } from "./parse";
+export { DELIMITER, detectFormat, parseImportInput, parseImportText, parseJsonText, parseLine } from "./parse";
+export type { ImportFormat, ParsedLine, ParsedLineErr, ParsedLineOk } from "./parse";
 
 export type ImportItemResult = {
   lineNo: number;
@@ -20,6 +20,7 @@ export type ImportResult = {
   ok: number;
   failed: number;
   ignoredParams: number;
+  format: "lines" | "json";
   items: ImportItemResult[];
 };
 
@@ -30,8 +31,8 @@ const DEFAULT_CONCURRENCY = 4;
  * 刷新失败 -> 该行报错并跳过（不写入邮箱，已有记录则标记为 error）。
  * 刷新成功 -> 保存 access token + 轮换后的新 refresh token。
  */
-export async function importMailboxes(text: string, concurrency = DEFAULT_CONCURRENCY): Promise<ImportResult> {
-  const parsed = parseImportText(text);
+export async function importMailboxes(text: string, concurrency = DEFAULT_CONCURRENCY, format: ImportFormat = "auto"): Promise<ImportResult> {
+  const { parsed, format: resolvedFormat } = parseImportInput(text, format);
   const items: ImportItemResult[] = [];
   const tasks: ParsedLineOk[] = [];
   /** email -> items 下标 */
@@ -103,6 +104,7 @@ export async function importMailboxes(text: string, concurrency = DEFAULT_CONCUR
     ok: items.filter((i) => i.status === "ok").length,
     failed: items.filter((i) => i.status === "error").length,
     ignoredParams,
+    format: resolvedFormat,
     items,
   };
 }
