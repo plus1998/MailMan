@@ -38,3 +38,9 @@ data
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm
+
+# OAuth 取 token 的临时状态（PKCE verifier / code / 浏览器 profile）
+.mailman-oauth
+
+__pycache__/
+*.pyc

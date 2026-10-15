@@ -158,9 +158,25 @@ scripts/probe-outlook.ts  命令行探针
 ```bash
 bun run dev        # 开发（--watch）
 bun run start      # 生产
-bun test           # 15 个单测（解析 + outlook 报文/URL/错误）
+bun test           # 27 个单测（解析 / JSON 导入 / outlook 报文与 URL / 错误提示）
 bun run typecheck  # tsc --noEmit
 ```
+
+## 项目 Skill：取 token 的完整流程
+
+`bun run dev` 旁边多了一个可复用的工作流——遇到新邮箱要导入、或 token 失效要重取时，直接 `/skill:outlook-token-import`：
+
+```text
+.agents/skills/outlook-token-import/
+├── SKILL.md              # 账号密码 → 浏览器 OAuth → refresh token → 导入 的完整步骤与坑
+├── references/aadsts.md  # AADSTSxxxx 错误码 → 原因 → 下一步
+└── scripts/
+    ├── pkce.ts           # 生成 PKCE + authorize URL
+    ├── exchange.ts       # code 换 token → 导入 → 拉邮件验证
+    └── flow.py           # Playwright 全自动兜底（自动读验证码）
+```
+
+临时状态（PKCE verifier / code / 浏览器 profile）写 `.mailman-oauth/`，已 gitignore。
 
 ## 已知限制
 
