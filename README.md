@@ -14,6 +14,20 @@ bun run dev          # http://localhost:3000  （PORT=3000 默认，--watch 热�
 
 生产模式：`bun run start`（关闭前端 mtime 热更新、产物 minify）。
 
+## 界面
+
+<table>
+  <tr>
+    <td width="50%">管理页 <code>/admin</code>：批量导入、逐行结果（成功/失败原因）、邮箱列表<br><img src="docs/screenshots/admin.png" alt="管理页" width="100%"></td>
+    <td width="50%">收件箱 <code>/inbox?email=xxx</code>（宽屏：左列表 / 右正文）<br><img src="docs/screenshots/inbox-wide.png" alt="收件箱宽屏" width="100%"></td>
+  </tr>
+  <tr>
+    <td colspan="2">收件箱窄屏（≤900px）：正文改为全屏弹窗，<code>Esc</code> 或 <code>×</code> 关闭<br><img src="docs/screenshots/inbox-narrow.png" alt="收件箱窄屏弹窗" width="420"></td>
+  </tr>
+</table>
+
+> 截图中的邮箱地址、邮件内容与 token 均为演示数据。
+
 ## 导入格式
 
 每行一条，`----` 分隔，**只取前 4 段，多余参数忽略**；空行与 `#` 开头的行跳过：
