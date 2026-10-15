@@ -13,13 +13,19 @@ export class OutlookError extends Error {
   readonly status: number;
   readonly code?: string;
   readonly detail?: string;
+  /** 针对常见 AADSTS 错误的可操作提示（仅追加，不掩盖原始错误） */
+  readonly hint?: string;
 
-  constructor(message: string, opts: { status?: number; code?: string; detail?: string } = {}) {
+  constructor(
+    message: string,
+    opts: { status?: number; code?: string; detail?: string; hint?: string } = {},
+  ) {
     super(message);
     this.name = "OutlookError";
     this.status = opts.status ?? 0;
     this.code = opts.code;
     this.detail = opts.detail;
+    this.hint = opts.hint;
   }
 }
 
@@ -33,6 +39,25 @@ export type TokenSet = {
   expiresIn: number;
 };
 
+/**
+ * 常见 AADSTS 错误的可操作提示。原始 error_description 始绫完整保留，
+ * 这里只追加一句建议，不做任何兜底。
+ */
+export function hintFor(detail: string | undefined): string | undefined {
+  if (!detail) return undefined;
+  if (detail.includes("AADSTS70043")) {
+    return "提示：refresh token 已过期，请重新登录取 token 后再导入。";
+  }
+  // 注意：AADSTS9002313 包含 AADSTS90023 前缀，必须先判 9002313
+  if (detail.includes("AADSTS70000") || detail.includes("AADSTS9002313")) {
+    return "提示：refresh token 无效 / 已被轮换，或与 client_id 不匹配。MS 每次刷新都会换新的 RT，请确认导入的 client_id 与取 token 时是同一个。";
+  }
+  if (detail.includes("AADSTS90023")) {
+    return "提示：该 client_id 是 SPA / 第一方应用（如 outlook.live.com 自己的 9199bf20-…），它的 token 不能在服务端兑换。请改用 native 公共客户端取 token，例如 Thunderbird 的 9e5f94bc-e8a4-4e73-b8be-63364c29d753（redirect_uri=https://login.microsoftonline.com/common/oauth2/nativeclient，scope 带 offline_access）。";
+  }
+  return undefined;
+}
+
 function describeMsError(status: number, body: unknown): OutlookError {
   const b = (body ?? {}) as {
     error?: string;
@@ -44,9 +69,10 @@ function describeMsError(status: number, body: unknown): OutlookError {
   const code = b.error ?? (b.error_codes?.length ? String(b.error_codes[0]) : undefined);
   const detail = b.error_description ?? b.message;
   const msg = detail ?? `HTTP ${status}`;
+  const hint = hintFor(detail);
   return new OutlookError(
-    code ? `${code}: ${msg}` : msg,
-    { status, code, detail },
+    (code ? `${code}: ${msg}` : msg) + (hint ? ` ${hint}` : ""),
+    { status, code, detail, hint },
   );
 }
 

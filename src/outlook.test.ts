@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { OutlookError, getMessage, listMessages, refreshAccessToken } from "./outlook";
+import { OutlookError, getMessage, hintFor, listMessages, refreshAccessToken } from "./outlook";
 
 const realFetch = globalThis.fetch;
 let calls: { url: string; init: RequestInit }[] = [];
@@ -174,5 +174,37 @@ describe("getMessage", () => {
     expect(d.bodyContent).toContain("302505");
     expect(d.subject).toBe("你的临时 ChatGPT 登录代码");
     expect(calls[0]!.url).toContain("/me/messages/AQMk%20ADw%2Fx%2B%3D?");
+  });
+});
+
+describe("hintFor", () => {
+  test("AADSTS90023（SPA / 第一方客户端）给出换 native client 的提示", () => {
+    const h = hintFor("AADSTS90023: Tokens issued for the 'Single-Page Application' client-type should only be redeemed via cross-origin requests.");
+    expect(h).toContain("9e5f94bc-e8a4-4e73-b8be-63364c29d753");
+    expect(h).toContain("nativeclient");
+  });
+
+  test("AADSTS70043 / 70000 / 9002313 分别给提示，未知错误不给", () => {
+    expect(hintFor("AADSTS70043: The refresh token has expired")).toContain("已过期");
+    expect(hintFor("AADSTS70000: Refresh token failed to parse")).toContain("不匹配");
+    expect(hintFor("AADSTS9002313: Invalid request")).toContain("不匹配");
+    expect(hintFor("AADSTS50076: 别的东西")).toBeUndefined();
+    expect(hintFor(undefined)).toBeUndefined();
+  });
+
+  test("提示只追加，原始 error_description 完整保留在 message 与 detail", async () => {
+    mockFetch(() => Response.json({ error: "invalid_request", error_description: "AADSTS90023: SPA client-type" }, { status: 400 }));
+    let err: unknown;
+    try {
+      await refreshAccessToken({ clientId: "9199bf20-a13f-4107-85dc-02114787ef48", refreshToken: "RT" });
+    } catch (e) {
+      err = e;
+    }
+    expect(err).toBeInstanceOf(OutlookError);
+    const oe = err as OutlookError;
+    expect(oe.message).toContain("AADSTS90023: SPA client-type");
+    expect(oe.message).toContain("提示：");
+    expect(oe.detail).toBe("AADSTS90023: SPA client-type");
+    expect(oe.code).toBe("invalid_request");
   });
 });

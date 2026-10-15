@@ -75,6 +75,39 @@ email----password----clientid----refreshtoken
 
 > 注意：微软会轮换 refresh token，导入后数据库里的 refresh token 已是新值，原始那份可能失效。
 
+## 怎么取到可用的 refresh token（关键）
+
+不是所有 token 都能服务端刷新，**取决于取 token 时的 `client_id` 注册类型**：
+
+| client_id | 类型 | 能否被 Mail Man 刷新 |
+| --- | --- | --- |
+| `9199bf20-a13f-4107-85dc-02114787ef48`（outlook.live.com 网页自己用的） | SPA + 第一方 | ✗ `AADSTS90023`（SPA 只能跳域兑换；加了 `Origin` 头后又会报“第一方应用不允许用户 consent”） |
+| `9e5f94bc-e8a4-4e73-b8be-63364c29d753`（Mozilla Thunderbird） | Native 公共客户端 | ✓ 已实测可用 |
+
+用 Thunderbird 的 client_id 取 token（浏览器已登录目标账号时只需确认一次 consent）：
+
+```text
+https://login.microsoftonline.com/common/oauth2/v2.0/authorize
+  ?client_id=9e5f94bc-e8a4-4e73-b8be-63364c29d753
+  &response_type=code
+  &redirect_uri=https://login.microsoftonline.com/common/oauth2/nativeclient
+  &scope=https://outlook.office.com/mail.read offline_access
+  &code_challenge=<S256>&code_challenge_method=S256
+```
+
+重定向到 `nativeclient?code=...` 后，从地址栏取 `code`，再换 token：
+
+```bash
+curl -s https://login.microsoftonline.com/common/oauth2/v2.0/token \
+  -d client_id=9e5f94bc-e8a4-4e73-b8be-63364c29d753 \
+  -d grant_type=authorization_code \
+  --data-urlencode "code=<code>" \
+  --data-urlencode "redirect_uri=https://login.microsoftonline.com/common/oauth2/nativeclient" \
+  --data-urlencode "code_verifier=<verifier>"
+```
+
+把返回的 JSON 直接粘到管理页（格式选 **JSON**，补上 `email` 与 `client_id`）即可。导入失败时错误后面会自动附一行可操作提示（`hintFor()`）。
+
 ## 页面
 
 | 路由 | 说明 |
@@ -136,4 +169,5 @@ bun run typecheck  # tsc --noEmit
 - 仅 Outlook；Gmail 等需要各自的 provider 适配层。
 - 基于 Outlook REST API v2.0（微软已宣布退役，后续应迁到 Microsoft Graph `/me/messages`，接口层已集中在 `src/outlook.ts`，替换成本低）。
 - token 明文存于 `data/mailman.sqlite`（已在 `.gitignore` 中）。
-- JSON 导入的 token 常见 `scope` 是 `service::outlook.office.com::MBI_SSL`，刷新时我们固定请求 `https://outlook.office.com/mail.read offline_access`；若上游拒绝该 scope 切换，错误会原样返回（`invalid_grant` / `AADSTSxxxx`），需要改用对应 scope 或重新取 token。
+- 可用的 refresh token 依赖 **native 类型的公共 client_id**（目前用 Thunderbird 的 `9e5f94bc-…`）。SPA / 第一方 client（如 `9199bf20-…`）的 token 无法服务端刷新（`AADSTS90023`）；而依赖别人的 client_id 本身也有风险，微软随时可能收紧。长期正确做法是在 Entra ID 注册自己的应用（支持个号账号）。
+- 实测：Thunderbird client 取的 token 返回 `scope` 是全套 `Mail.Read / Mail.ReadWrite / EAS / EWS / POP / IMAP / SMTP.Send`（列表里没 `offline_access`）但仍下发 refresh token；刷新时我们请求 `mail.read offline_access`，上游返回它实际授予的 scope，不报错。
