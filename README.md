@@ -68,7 +68,7 @@ email----password----clientid----refreshtoken
 
 1. 解析并校验字段（email 格式、clientid / refreshtoken 非空），字段不足直接报错；
 2. 用 `refresh_token` 调 `https://login.microsoftonline.com/common/oauth2/v2.0/token`
-   （`scope=https://outlook.office.com/mail.read offline_access`）；
+   （**不传 `scope`**：token 已授予的 scope 集合各不相同，请求不在集合里的 scope 会被 `AADSTS70000` 拒；省略时微软直接返回已授予的集合）；
 3. **换取失败 → 该行报错并跳过，不入库**（已存在的邮箱会被标记为异常并记录错误原因）；
 4. **换取成功 → 保存 access token（含过期时间）+ 微软轮换后的新 refresh token**；
 5. 结果逐行返回：`created` / `updated` / `error`（带微软 `error` 码与 `error_description`）。
@@ -186,4 +186,4 @@ bun run typecheck  # tsc --noEmit
 - 基于 Outlook REST API v2.0（微软已宣布退役，后续应迁到 Microsoft Graph `/me/messages`，接口层已集中在 `src/outlook.ts`，替换成本低）。
 - token 明文存于 `data/mailman.sqlite`（已在 `.gitignore` 中）。
 - 可用的 refresh token 依赖 **native 类型的公共 client_id**（目前用 Thunderbird 的 `9e5f94bc-…`）。SPA / 第一方 client（如 `9199bf20-…`）的 token 无法服务端刷新（`AADSTS90023`）；而依赖别人的 client_id 本身也有风险，微软随时可能收紧。长期正确做法是在 Entra ID 注册自己的应用（支持个号账号）。
-- 实测：Thunderbird client 取的 token 返回 `scope` 是全套 `Mail.Read / Mail.ReadWrite / EAS / EWS / POP / IMAP / SMTP.Send`（列表里没 `offline_access`）但仍下发 refresh token；刷新时我们请求 `mail.read offline_access`，上游返回它实际授予的 scope，不报错。
+- 实测：Thunderbird client 取的 token 返回 `scope` 是全套 `Mail.Read / Mail.ReadWrite / EAS / EWS / POP / IMAP / SMTP.Send`（列表里没 `offline_access`）但仍下发 refresh token。注意集合里**只有 `Mail.ReadWrite`、没有 `Mail.Read`**，所以刷新不能硬塞 `scope=…mail.read offline_access`（会整批 `AADSTS70000`），代码已默认不传 scope。

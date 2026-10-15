@@ -100,6 +100,20 @@ MAILMAN_PW='<密码>' python3 .agents/skills/outlook-token-import/scripts/flow.p
   --email <目标邮箱> --code-mailbox <已导入的恢复邮箱> --import --verify
 ```
 
+## 批量导入外部已有的 token（不登录，直接导）
+
+如果用户直接给 `email----password----client_id----refresh_token` 行，先按下面判断，别直接往 `/api/mailboxes/import` 一丢就完事：
+
+1. 失败报 `AADSTS70000` 且文案含 “scopes … unauthorized or expired” → **不是 token 无效，是刷新时传的 scope 不在已授予集合里**。本项目已改为刷新默认不传 scope。
+2. 第 5 段形如 `rt.1.AAB…` 的不是 refresh token（拿去刷新报 `AADSTS9002313`），忽略是对的。
+3. 导入后**必须逐个拉邮件验证**（`/api/messages?email=&top=2`），“导入 ok” 不等于 “能取件”。
+
+```bash
+bun -e 'const t=await Bun.file("<文件>").text(); /* POST /api/mailboxes/import */'
+```
+
+token/密码临时文件放 `/tmp` 并在导入后 `rm`，绝不进仓库。
+
 ## 不要做的事
 
 - 不要为了「成功」而兜底：上游报错原样返回（这是本项目的既定原则，`hintFor()` 只在原始错误后追加一行建议）。

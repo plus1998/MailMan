@@ -57,7 +57,18 @@ describe("refreshAccessToken", () => {
     expect(form.get("client_id")).toBe("9e5f94bc-e8a4-4e73-b8be-63364c29d753");
     expect(form.get("refresh_token")).toBe("FAKE-RT-1");
     expect(form.get("redirect_uri")).toBe("https://login.microsoftonline.com/common/oauth2/token");
-    expect(form.get("scope")).toBe("https://outlook.office.com/mail.read offline_access");
+    // 不默认传 scope：请求未授予的 scope 会被 AADSTS70000 拒
+    expect(form.get("scope")).toBeNull();
+  });
+
+  test("显式传 scope 时才带上 scope", async () => {
+    mockFetch((url, init) => {
+      calls.push({ url: String(url), init: init ?? {} });
+      return jsonResponse(TOKEN_OK);
+    });
+    await refreshAccessToken({ clientId: "cid", refreshToken: "rt", scope: "https://outlook.office.com/Mail.ReadWrite" });
+    const form = new URLSearchParams(String(calls[0]!.init.body));
+    expect(form.get("scope")).toBe("https://outlook.office.com/Mail.ReadWrite");
   });
 
   test("失败：抛出微软的 error + error_description，不兜底", async () => {
