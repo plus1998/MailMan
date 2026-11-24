@@ -26,7 +26,7 @@ const jsonResponse = (body: unknown, status = 200) =>
 
 const TOKEN_OK = {
   token_type: "Bearer",
-  scope: "https://outlook.office.com/Mail.Read",
+  scope: "https://graph.microsoft.com/Mail.Read",
   expires_in: 3599,
   ext_expires_in: 3599,
   access_token: "FAKE-ACCESS-TOKEN-000000",
@@ -57,11 +57,10 @@ describe("refreshAccessToken", () => {
     expect(form.get("client_id")).toBe("9e5f94bc-e8a4-4e73-b8be-63364c29d753");
     expect(form.get("refresh_token")).toBe("FAKE-RT-1");
     expect(form.get("redirect_uri")).toBe("https://login.microsoftonline.com/common/oauth2/token");
-    // 不默认传 scope：请求未授予的 scope 会被 AADSTS70000 拒
-    expect(form.get("scope")).toBeNull();
+    expect(form.get("scope")).toBe("https://graph.microsoft.com/.default offline_access");
   });
 
-  test("显式传 scope 时才带上 scope", async () => {
+  test("显式传 scope 时覆盖 Graph 默认 scope", async () => {
     mockFetch((url, init) => {
       calls.push({ url: String(url), init: init ?? {} });
       return jsonResponse(TOKEN_OK);
@@ -196,6 +195,11 @@ describe("hintFor", () => {
     const h = hintFor("AADSTS90023: Tokens issued for the 'Single-Page Application' client-type should only be redeemed via cross-origin requests.");
     expect(h).toContain("9e5f94bc-e8a4-4e73-b8be-63364c29d753");
     expect(h).toContain("nativeclient");
+  });
+
+  test("AADSTS90023 权限不足时提示重新授权 Graph 邮件读取", () => {
+    expect(hintFor("AADSTS90023: No applicable permissions were found for this user."))
+      .toContain("重新授权邮件读取权限");
   });
 
   test("AADSTS70043 / 70000 / 9002313 分别给提示，未知错误不给", () => {

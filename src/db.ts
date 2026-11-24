@@ -56,6 +56,15 @@ db.exec(`
   );
 `);
 
+db.transaction(() => {
+  const { user_version } = db.query<{ user_version: number }, []>("PRAGMA user_version").get()!;
+  if (user_version >= 1) return;
+
+  // 旧缓存没有记录令牌的资源。下次读信时用现有 refresh token 获取 Graph 令牌。
+  db.exec("UPDATE mailboxes SET access_token = NULL, access_token_expires_at = NULL");
+  db.exec("PRAGMA user_version = 1");
+}).immediate();
+
 const now = () => Date.now();
 
 type Named = Record<string, string | number | null>;

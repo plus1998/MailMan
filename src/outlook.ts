@@ -6,8 +6,8 @@
 const TOKEN_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
 const API_BASE = "https://graph.microsoft.com/v1.0";
 
-/** 仅供显式指定时使用。刷新默认**不**传 scope，见 refreshAccessToken 里的说明。 */
-export const DEFAULT_SCOPE = "https://outlook.office.com/mail.read offline_access";
+// .default 使用客户端已获授的 Graph 权限，兼容 Mail.Read 和 Mail.ReadWrite。
+export const DEFAULT_SCOPE = "https://graph.microsoft.com/.default offline_access";
 export const DEFAULT_REDIRECT_URI = "https://login.microsoftonline.com/common/oauth2/token";
 
 export class OutlookError extends Error {
@@ -51,10 +51,13 @@ export function hintFor(detail: string | undefined): string | undefined {
   }
   // 注意：AADSTS9002313 包含 AADSTS90023 前缀，必须先判 9002313
   if (detail.includes("AADSTS70000") && /scope/i.test(detail)) {
-    return "提示：刷新时请求的 scope 不在该 token 已授予的集合里（例如 Thunderbird 取的是 Mail.ReadWrite/EWS/IMAP/SMTP，没有 Mail.Read）。刷新不传 scope，或改成已授予的 scope。";
+    return "提示：当前 OAuth 客户端的授权不包含请求的 scope。读取邮件需要为该客户端授予 Microsoft Graph 邮件读取权限。";
   }
   if (detail.includes("AADSTS70000") || detail.includes("AADSTS9002313")) {
     return "提示：refresh token 无效 / 已被轮换，或与 client_id 不匹配。MS 每次刷新都会换新的 RT，请确认导入的 client_id 与取 token 时是同一个。";
+  }
+  if (detail.includes("AADSTS90023") && /no applicable permissions/i.test(detail)) {
+    return "提示：此邮箱尚未为当前 OAuth 客户端授予适用的 Microsoft Graph 权限，请重新授权邮件读取权限后导入。";
   }
   if (detail.includes("AADSTS90023")) {
     return "提示：该 client_id 是 SPA / 第一方应用（如 outlook.live.com 自己的 9199bf20-…），它的 token 不能在服务端兑换。请改用 native 公共客户端取 token，例如 Thunderbird 的 9e5f94bc-e8a4-4e73-b8be-63364c29d753（redirect_uri=https://login.microsoftonline.com/common/oauth2/nativeclient，scope 带 offline_access）。";
@@ -93,12 +96,8 @@ export async function refreshAccessToken(input: {
     refresh_token: input.refreshToken,
     client_id: input.clientId,
     redirect_uri: input.redirectUri ?? DEFAULT_REDIRECT_URI,
+    scope: input.scope ?? DEFAULT_SCOPE,
   });
-  // 默认不传 scope：token 已授予的 scope 集合各不相同（例如 Thunderbird 取的是
-  // Mail.ReadWrite / EWS / IMAP / SMTP，里面并没有 Mail.Read）。
-  // 刷新时请求一个不在授予集合里的 scope 会被 AADSTS70000 拒；
-  // 省略时微软直接返回已授予的集合。需要收窄时才显式传 input.scope。
-  if (input.scope) form.set("scope", input.scope);
 
   let res: Response;
   try {
