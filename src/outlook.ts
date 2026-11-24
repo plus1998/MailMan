@@ -1,10 +1,10 @@
 /**
- * Outlook REST API v2.0 + Microsoft identity v2.0 token endpoint.
+ * Microsoft Graph Mail API + Microsoft identity v2.0 token endpoint.
  * 错误一律抛出 OutlookError（带 MS 返回的 error / error_description），不做兜底。
  */
 
 const TOKEN_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
-const API_BASE = "https://outlook.office.com/api/v2.0";
+const API_BASE = "https://graph.microsoft.com/v1.0";
 
 /** 仅供显式指定时使用。刷新默认**不**传 scope，见 refreshAccessToken 里的说明。 */
 export const DEFAULT_SCOPE = "https://outlook.office.com/mail.read offline_access";
@@ -64,14 +64,16 @@ export function hintFor(detail: string | undefined): string | undefined {
 
 function describeMsError(status: number, body: unknown): OutlookError {
   const b = (body ?? {}) as {
-    error?: string;
+    error?: string | { code?: string; message?: string };
     error_description?: string;
     error_codes?: number[];
     timestamp?: string;
     message?: string;
   };
-  const code = b.error ?? (b.error_codes?.length ? String(b.error_codes[0]) : undefined);
-  const detail = b.error_description ?? b.message;
+  const graphError = typeof b.error === "object" ? b.error : undefined;
+  const code = (typeof b.error === "string" ? b.error : graphError?.code)
+    ?? (b.error_codes?.length ? String(b.error_codes[0]) : undefined);
+  const detail = b.error_description ?? graphError?.message ?? b.message;
   const msg = detail ?? `HTTP ${status}`;
   const hint = hintFor(detail);
   return new OutlookError(
@@ -155,7 +157,7 @@ async function apiGet<T>(accessToken: string, url: string): Promise<T> {
       headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
     });
   } catch (e) {
-    throw new OutlookError(`无法连接 Outlook API：${(e as Error).message}`);
+    throw new OutlookError(`无法连接 Microsoft Graph：${(e as Error).message}`);
   }
 
   const text = await res.text();
@@ -170,22 +172,21 @@ async function apiGet<T>(accessToken: string, url: string): Promise<T> {
     if (body) throw describeMsError(res.status, body);
     throw new OutlookError(`HTTP ${res.status}: ${text.slice(0, 300)}`, { status: res.status });
   }
-  if (!body) throw new OutlookError(`Outlook API 返回空响应（HTTP ${res.status}）`, { status: res.status });
+  if (!body) throw new OutlookError(`Microsoft Graph 返回空响应（HTTP ${res.status}）`, { status: res.status });
   return body as T;
 }
 
 /* ---------- 响应归一化 ---------- */
 
-type RawAddress = { Name?: string; Address?: string };
-type RawFrom = { EmailAddress?: RawAddress };
+type RawFrom = { emailAddress?: { name?: string; address?: string } };
 type RawMessage = {
-  Id?: string;
-  ReceivedDateTime?: string;
-  Subject?: string;
-  BodyPreview?: string;
-  IsRead?: boolean;
-  From?: RawFrom;
-  Body?: { ContentType?: string; Content?: string };
+  id?: string;
+  receivedDateTime?: string;
+  subject?: string;
+  bodyPreview?: string;
+  isRead?: boolean;
+  from?: RawFrom;
+  body?: { contentType?: string; content?: string };
 };
 
 export type MailAddress = { name: string; address: string };
@@ -203,19 +204,19 @@ export type MailDetail = MailSummary & {
 };
 
 function addr(raw: RawFrom | undefined): MailAddress {
-  const a = raw?.EmailAddress;
-  return { name: a?.Name ?? "", address: a?.Address ?? "" };
+  const a = raw?.emailAddress;
+  return { name: a?.name ?? "", address: a?.address ?? "" };
 }
 
 function summary(raw: RawMessage): MailSummary {
-  if (!raw.Id) throw new OutlookError("邮件响应缺少 Id");
+  if (!raw.id) throw new OutlookError("邮件响应缺少 id");
   return {
-    id: raw.Id,
-    subject: raw.Subject ?? "(无主题)",
-    from: addr(raw.From),
-    receivedAt: raw.ReceivedDateTime ?? "",
-    bodyPreview: raw.BodyPreview ?? "",
-    isRead: raw.IsRead ?? false,
+    id: raw.id,
+    subject: raw.subject ?? "(无主题)",
+    from: addr(raw.from),
+    receivedAt: raw.receivedDateTime ?? "",
+    bodyPreview: raw.bodyPreview ?? "",
+    isRead: raw.isRead ?? false,
   };
 }
 
@@ -223,7 +224,8 @@ export async function listMessages(
   accessToken: string,
   opts: { folder?: string; top?: number; skip?: number } = {},
 ): Promise<{ messages: MailSummary[]; nextLink: string | null; total: number | null }> {
-  const folder = encodeURIComponent(opts.folder ?? "Inbox");
+  const name = opts.folder ?? "Inbox";
+  const folder = encodeURIComponent(name.toLowerCase() === "junk" ? "junkemail" : name);
   const params = new URLSearchParams({
     $select: "id,subject,from,receivedDateTime,bodyPreview,isRead",
     $top: String(Math.min(Math.max(opts.top ?? 20, 1), 100)),
@@ -251,7 +253,7 @@ export async function getMessage(accessToken: string, id: string): Promise<MailD
   const raw = await apiGet<RawMessage>(accessToken, url);
   return {
     ...summary(raw),
-    bodyContentType: raw.Body?.ContentType ?? "text",
-    bodyContent: raw.Body?.Content ?? "",
+    bodyContentType: raw.body?.contentType ?? "text",
+    bodyContent: raw.body?.content ?? "",
   };
 }

@@ -101,7 +101,7 @@ export function App() {
         {path === "/admin" ? <Admin /> : path === "/inbox" ? <Inbox search={search} /> : <Home />}
       </main>
 
-      <footer className="foot">bun + react · Outlook REST API v2.0 · 无鉴权（仅限本地/内网使用）</footer>
+      <footer className="foot">bun + react · Microsoft Graph · 无鉴权（仅限本地/内网使用）</footer>
     </div>
   );
 }

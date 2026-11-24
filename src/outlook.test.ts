@@ -104,24 +104,24 @@ describe("refreshAccessToken", () => {
 });
 
 const LIST_OK = {
-  "@odata.context": "https://outlook.office.com/api/v2.0/$metadata#Me/MailFolders('Inbox')/Messages(Subject,From,ReceivedDateTime,BodyPreview)",
   value: [
     {
-      Id: "AQMkADAwATNiZmYAZS1iNzU1AC04MGJjLTAwAi0wMAoA1",
-      ReceivedDateTime: "2026-09-30T15:35:07Z",
-      Subject: "Get real help, not just answers",
-      BodyPreview: "Study, explore, and grow with ChatGPT.",
-      From: { EmailAddress: { Name: "ChatGPT", Address: "noreply@email.openai.com" } },
+      id: "AQMkADAwATNiZmYAZS1iNzU1AC04MGJjLTAwAi0wMAoA1",
+      receivedDateTime: "2026-09-30T15:35:07Z",
+      subject: "Get real help, not just answers",
+      bodyPreview: "Study, explore, and grow with ChatGPT.",
+      from: { emailAddress: { name: "ChatGPT", address: "noreply@email.openai.com" } },
+      isRead: true,
     },
     {
-      Id: "AQMkADAwATNiZmYAZS1iNzU1AC04MGJjLTAwAi0wMAoA2",
-      ReceivedDateTime: "2026-09-20T17:17:02Z",
-      Subject: "你的临时 ChatGPT 登录代码",
-      BodyPreview: "输入此临时验证码以继续：\r\n\r\n302505",
-      From: { EmailAddress: { Name: "ChatGPT", Address: "noreply@tm.openai.com" } },
+      id: "AQMkADAwATNiZmYAZS1iNzU1AC04MGJjLTAwAi0wMAoA2",
+      receivedDateTime: "2026-09-20T17:17:02Z",
+      subject: "你的临时 ChatGPT 登录代码",
+      bodyPreview: "输入此临时验证码以继续：\r\n\r\n302505",
+      from: { emailAddress: { name: "ChatGPT", address: "noreply@tm.openai.com" } },
     },
   ],
-  "@odata.nextLink": "https://outlook.office.com/api/v2.0/me/mailFolders/Inbox/messages?$skip=10",
+  "@odata.nextLink": "https://graph.microsoft.com/v1.0/me/mailFolders/Inbox/messages?$skip=10",
 };
 
 describe("listMessages", () => {
@@ -135,7 +135,7 @@ describe("listMessages", () => {
       from: { name: "ChatGPT", address: "noreply@email.openai.com" },
       receivedAt: "2026-09-30T15:35:07Z",
       bodyPreview: "Study, explore, and grow with ChatGPT.",
-      isRead: false,
+      isRead: true,
     });
     expect(r.messages[1]!.subject).toBe("你的临时 ChatGPT 登录代码");
     expect(r.nextLink).toContain("$skip=10");
@@ -148,7 +148,8 @@ describe("listMessages", () => {
     });
     await listMessages("token", { folder: "Junk", top: 50, skip: 30 });
     const u = new URL(calls[0]!.url);
-    expect(u.pathname).toBe("/api/v2.0/me/mailFolders/Junk/messages");
+    expect(u.origin).toBe("https://graph.microsoft.com");
+    expect(u.pathname).toBe("/v1.0/me/mailFolders/junkemail/messages");
     expect(u.searchParams.get("$top")).toBe("50");
     expect(u.searchParams.get("$skip")).toBe("30");
     expect(u.searchParams.get("$orderby")).toBe("receivedDateTime desc");
@@ -156,7 +157,7 @@ describe("listMessages", () => {
   });
 
   test("401 时抛出上游错误", async () => {
-    mockFetch(() => jsonResponse({ "odata.error": { message: { value: "Invalid security token." } }, error: "invalid_token" }, 401));
+    mockFetch(() => jsonResponse({ error: { code: "InvalidAuthenticationToken", message: "Invalid security token." } }, 401));
     let err: unknown;
     try {
       await listMessages("bad", {});
@@ -165,6 +166,8 @@ describe("listMessages", () => {
     }
     expect(err).toBeInstanceOf(OutlookError);
     expect((err as OutlookError).status).toBe(401);
+    expect((err as OutlookError).code).toBe("InvalidAuthenticationToken");
+    expect((err as OutlookError).detail).toBe("Invalid security token.");
   });
 });
 
@@ -173,18 +176,18 @@ describe("getMessage", () => {
     mockFetch((url) => {
       calls.push({ url: String(url), init: {} });
       return jsonResponse({
-        Id: "AQMk ADw/x+=",
-        Subject: "你的临时 ChatGPT 登录代码",
-        ReceivedDateTime: "2026-09-20T17:17:02Z",
-        From: { EmailAddress: { Name: "ChatGPT", Address: "noreply@tm.openai.com" } },
-        Body: { ContentType: "HTML", Content: "<html><body>302505</body></html>" },
+        id: "AQMk ADw/x+=",
+        subject: "你的临时 ChatGPT 登录代码",
+        receivedDateTime: "2026-09-20T17:17:02Z",
+        from: { emailAddress: { name: "ChatGPT", address: "noreply@tm.openai.com" } },
+        body: { contentType: "html", content: "<html><body>302505</body></html>" },
       });
     });
     const d = await getMessage("token", "AQMk ADw/x+=");
-    expect(d.bodyContentType).toBe("HTML");
+    expect(d.bodyContentType).toBe("html");
     expect(d.bodyContent).toContain("302505");
     expect(d.subject).toBe("你的临时 ChatGPT 登录代码");
-    expect(calls[0]!.url).toContain("/me/messages/AQMk%20ADw%2Fx%2B%3D?");
+    expect(calls[0]!.url).toContain("https://graph.microsoft.com/v1.0/me/messages/AQMk%20ADw%2Fx%2B%3D?");
   });
 });
 

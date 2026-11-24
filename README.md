@@ -146,7 +146,7 @@ server.ts                 Bun.serve：路由 + 前端内存构建（源码 mtime
 src/db.ts                 bun:sqlite（data/mailman.sqlite）邮箱与 token 存取
 src/parse.ts              导入文本解析（纯函数，可单测）
 src/import.ts             批量导入：并发刷新 token + 逐行结果
-src/outlook.ts            token 端点 + Outlook REST v2.0，响应归一化
+src/outlook.ts            token 端点 + Microsoft Graph Mail API，响应归一化
 src/mail-service.ts       access token 缓存/自动刷新/并发去重
 src/api.ts                HTTP 接口层
 src/client/               React 前端（App / Admin / Inbox / api / css）
@@ -183,7 +183,7 @@ bun run typecheck  # tsc --noEmit
 - **无鉴权**：任何人能看所有邮箱的邮件，仅限本地/内网使用。
 - 密码字段只是随导入保存，未使用（不做 IMAP/SMTP 登录）。
 - 仅 Outlook；Gmail 等需要各自的 provider 适配层。
-- 基于 Outlook REST API v2.0（微软已宣布退役，后续应迁到 Microsoft Graph `/me/messages`，接口层已集中在 `src/outlook.ts`，替换成本低）。
+- 通过 Microsoft Graph v1.0 读取邮件。访问令牌需要面向 Microsoft Graph，并具有读取邮件正文的委托权限，例如 `Mail.Read`。
 - token 明文存于 `data/mailman.sqlite`（已在 `.gitignore` 中）。
 - 可用的 refresh token 依赖 **native 类型的公共 client_id**（目前用 Thunderbird 的 `9e5f94bc-…`）。SPA / 第一方 client（如 `9199bf20-…`）的 token 无法服务端刷新（`AADSTS90023`）；而依赖别人的 client_id 本身也有风险，微软随时可能收紧。长期正确做法是在 Entra ID 注册自己的应用（支持个号账号）。
 - 实测：Thunderbird client 取的 token 返回 `scope` 是全套 `Mail.Read / Mail.ReadWrite / EAS / EWS / POP / IMAP / SMTP.Send`（列表里没 `offline_access`）但仍下发 refresh token。注意集合里**只有 `Mail.ReadWrite`、没有 `Mail.Read`**，所以刷新不能硬塞 `scope=…mail.read offline_access`（会整批 `AADSTS70000`），代码已默认不传 scope。
