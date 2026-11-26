@@ -8,6 +8,7 @@ export type PublicMailbox = {
   accessTokenExpiresAt: number | null;
   status: "active" | "error";
   lastError: string | null;
+  note: string | null;
   createdAt: number;
   updatedAt: number;
 };
@@ -87,6 +88,13 @@ export const api = {
 
   remove: (email: string) =>
     request<{ ok: true; deleted: boolean }>(`/api/mailboxes?email=${encodeURIComponent(email)}`, { method: "DELETE" }),
+
+  setNote: (email: string, note: string) =>
+    request<{ ok: true; email: string; note: string | null }>("/api/mailboxes/note", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, note }),
+    }),
 
   messages: (email: string, folder: string, top: number, skip: number) =>
     request<MessageListResult>(

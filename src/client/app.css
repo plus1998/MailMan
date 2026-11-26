@@ -79,9 +79,24 @@ main { display: flex; flex-direction: column; gap: 16px; }
 .table th { color: var(--muted); font-weight: 500; font-size: 12.5px; white-space: nowrap; }
 .mailbox-table th:nth-child(2), .mailbox-table td:nth-child(2) { min-width: 210px; }
 .mailbox-table th:nth-child(3), .mailbox-table td:nth-child(3) { min-width: 150px; white-space: nowrap; }
-.mailbox-table th:nth-child(5), .mailbox-table td:nth-child(5) { white-space: nowrap; }
+.mailbox-table th:nth-child(5), .mailbox-table td:nth-child(5) { min-width: 140px; white-space: nowrap; }
+.mailbox-table th:nth-child(6), .mailbox-table td:nth-child(6) { white-space: nowrap; }
 .acts { white-space: nowrap; }
 .mailbox-table td:first-child { white-space: nowrap; }
+.mailbox-email { white-space: nowrap; }
+.note-view { margin-top: 4px; }
+.note-text, .note-add {
+  display: inline; padding: 0; border: 0; background: none; cursor: pointer;
+  font: inherit; text-align: left; max-width: 280px;
+}
+.note-text {
+  color: var(--muted); font-size: 12.5px;
+  white-space: normal; word-break: break-word;
+}
+.note-text:hover, .note-add:hover { color: var(--primary); text-decoration: underline; }
+.note-add { color: var(--muted); font-size: 12px; }
+.note-edit { display: flex; align-items: center; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
+.note-input { width: min(280px, 100%); font-size: 12.5px; padding: 5px 8px; }
 /* client_id / token 过期时间：次要信息 */
 .meta, .mailbox-table td.meta { color: var(--muted); font-size: 12px; }
 .mailbox-table td.meta.mono { font-size: 12px; }
@@ -168,7 +183,8 @@ ul.plain li { padding: 4px 0; }
   /* 邮箱表：邮箱 + 状态 一行，client_id / token 过期时间作为次要信息一行，操作一行 */
   .mailbox-table thead { display: none; }
   .mailbox-table, .mailbox-table tbody, .mailbox-table tr, .mailbox-table td { display: block; width: auto; min-width: 0; }
-  .mailbox-table td, .mailbox-table td:nth-child(2), .mailbox-table td:nth-child(3), .mailbox-table td:nth-child(4), .mailbox-table td:nth-child(5) {
+  .mailbox-table td, .mailbox-table td:nth-child(2), .mailbox-table td:nth-child(3),
+  .mailbox-table td:nth-child(4), .mailbox-table td:nth-child(5), .mailbox-table td:nth-child(6) {
     min-width: 0; white-space: normal; word-break: break-word;
   }
   .mailbox-table td.wrap { max-width: none; }
@@ -184,7 +200,8 @@ ul.plain li { padding: 4px 0; }
   .mailbox-table td:nth-child(3) { grid-column: 2; grid-row: 2; font-size: 12px; justify-self: end; }
   .mailbox-table td:nth-child(4) { grid-column: 2; grid-row: 1; justify-self: end; }
   .mailbox-table td:nth-child(4) .cell { display: flex; gap: 8px; align-items: baseline; }
-  .mailbox-table td:nth-child(5) { grid-column: 1 / -1; grid-row: 3; }
+  .mailbox-table td:nth-child(5) { grid-column: 1; grid-row: 3; font-size: 12px; }
+  .mailbox-table td:nth-child(6) { grid-column: 1 / -1; grid-row: 4; }
   /* 有错误时整行单列，保证错误文本有足够宽度 */
   .mailbox-table tr.has-error td { grid-column: 1 / -1; grid-row: auto; justify-self: start; }
 }
@@ -202,7 +219,9 @@ ul.plain li { padding: 4px 0; }
 @media (max-width: 600px) {
   .mailbox-table tr { grid-template-columns: 1fr; }
   .mailbox-table td:nth-child(1), .mailbox-table td:nth-child(2), .mailbox-table td:nth-child(3),
-  .mailbox-table td:nth-child(4), .mailbox-table td:nth-child(5) { grid-column: 1 / -1; grid-row: auto; justify-self: start; }
+  .mailbox-table td:nth-child(4), .mailbox-table td:nth-child(5), .mailbox-table td:nth-child(6) {
+    grid-column: 1 / -1; grid-row: auto; justify-self: start;
+  }
   .app { padding: 0 12px 28px; }
   .card { padding: 13px 13px; border-radius: 8px; }
   .topbar { flex-wrap: wrap; gap: 6px 14px; padding: 12px 0; }

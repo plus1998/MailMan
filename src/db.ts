@@ -16,6 +16,7 @@ export type MailboxRow = {
   access_token_expires_at: number | null; // epoch ms
   status: MailboxStatus;
   last_error: string | null;
+  note: string | null;
   created_at: number;
   updated_at: number;
 };
@@ -30,6 +31,7 @@ export type PublicMailbox = {
   accessTokenExpiresAt: number | null;
   status: MailboxStatus;
   lastError: string | null;
+  note: string | null;
   createdAt: number;
   updatedAt: number;
 };
@@ -51,6 +53,7 @@ db.exec(`
     access_token_expires_at INTEGER,
     status                 TEXT    NOT NULL DEFAULT 'active',
     last_error             TEXT,
+    note                   TEXT,
     created_at             INTEGER NOT NULL,
     updated_at             INTEGER NOT NULL
   );
@@ -58,11 +61,18 @@ db.exec(`
 
 db.transaction(() => {
   const { user_version } = db.query<{ user_version: number }, []>("PRAGMA user_version").get()!;
-  if (user_version >= 1) return;
-
-  // 旧缓存没有记录令牌的资源。下次读信时用现有 refresh token 获取 Graph 令牌。
-  db.exec("UPDATE mailboxes SET access_token = NULL, access_token_expires_at = NULL");
-  db.exec("PRAGMA user_version = 1");
+  if (user_version < 1) {
+    // 旧缓存没有记录令牌的资源。下次读信时用现有 refresh token 获取 Graph 令牌。
+    db.exec("UPDATE mailboxes SET access_token = NULL, access_token_expires_at = NULL");
+    db.exec("PRAGMA user_version = 1");
+  }
+  if (user_version < 2) {
+    const cols = db.query<{ name: string }, []>("PRAGMA table_info(mailboxes)").all().map((c) => c.name);
+    if (!cols.includes("note")) {
+      db.exec("ALTER TABLE mailboxes ADD COLUMN note TEXT");
+    }
+    db.exec("PRAGMA user_version = 2");
+  }
 }).immediate();
 
 const now = () => Date.now();
@@ -106,7 +116,13 @@ const qSaveTokens = db.query<unknown, [Named]>(
 const qSetError = db.query<unknown, [Named]>(
   `UPDATE mailboxes SET status = 'error', last_error = $last_error, updated_at = $now WHERE email = $email`,
 );
+const qSetNote = db.query<unknown, [Named]>(
+  `UPDATE mailboxes SET note = $note, updated_at = $now WHERE email = $email`,
+);
 const qCount = db.query<{ n: number }, []>("SELECT COUNT(*) AS n FROM mailboxes");
+
+/** 备注最长字符数（按 JS 字符串长度计） */
+export const NOTE_MAX_LENGTH = 200;
 
 export function listMailboxes(): MailboxRow[] {
   return qSelectAll.all();
@@ -158,6 +174,18 @@ export function setMailboxError(email: string, message: string): void {
   qSetError.run({ $email: email.toLowerCase(), $last_error: message, $now: now() });
 }
 
+/** 写入备注；空字符串存为 null。邮箱不存在返回 false。 */
+export function setMailboxNote(email: string, note: string | null): boolean {
+  const normalized = note === null || !note.trim() ? null : note.trim();
+  return (
+    qSetNote.run({
+      $email: email.toLowerCase(),
+      $note: normalized,
+      $now: now(),
+    }).changes > 0
+  );
+}
+
 export function deleteMailbox(email: string): boolean {
   return qDeleteByEmail.run(email.toLowerCase()).changes > 0;
 }
@@ -173,6 +201,7 @@ export function toPublicMailbox(row: MailboxRow): PublicMailbox {
     accessTokenExpiresAt: row.access_token_expires_at,
     status: row.status,
     lastError: row.last_error,
+    note: row.note,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

@@ -57,13 +57,15 @@ function Home() {
         <div className="table-wrap">
         <table className="table">
           <thead>
-            <tr><th>邮箱</th><th>状态</th><th>操作</th></tr>
+            <tr><th>邮箱</th><th>备注</th><th>状态</th><th>导入时间</th><th>操作</th></tr>
           </thead>
           <tbody>
             {boxes.map((b) => (
               <tr key={b.email}>
                 <td>{b.email}</td>
+                <td className="muted">{b.note || "—"}</td>
                 <td><span className={`tag ${b.status}`}>{b.status === "active" ? "正常" : "异常"}</span></td>
+                <td className="muted nowrap">{new Date(b.createdAt).toLocaleString()}</td>
                 <td>
                   <a href={`/inbox?email=${encodeURIComponent(b.email)}`}
                      onClick={(e) => { e.preventDefault(); navigate(`/inbox?email=${encodeURIComponent(b.email)}`); }}>

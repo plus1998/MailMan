@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, type ImportResult, type PublicMailbox } from "./api";
 import { navigate } from "./App";
 
@@ -13,12 +13,113 @@ const PLACEHOLDER_JSON = `// 单个对象 / 对象数组 / 每行一个 JSON 都
   "id_token": "eyJhdWQiOiI5ZTVmOTRiYy1lOGE0LTRlNzMtYjhiZS02MzM2NGMyOWQ3NTMifQ.x.y"
 }`;
 
+const NOTE_MAX = 200;
+
 function fmtTime(ms: number | null): string {
   if (!ms) return "—";
   const d = new Date(ms);
   const diff = ms - Date.now();
   const suffix = diff > 0 ? `（${Math.round(diff / 60000)} 分钟后过期）` : "（已过期）";
   return `${d.toLocaleString()} ${suffix}`;
+}
+
+function fmtImported(ms: number): string {
+  return new Date(ms).toLocaleString();
+}
+
+function NoteEditor({
+  email,
+  note,
+  onSaved,
+  onError,
+}: {
+  email: string;
+  note: string | null;
+  onSaved: (note: string | null) => void;
+  onError: (msg: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(note ?? "");
+  const [saving, setSaving] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
+
+  const startEdit = () => {
+    setDraft(note ?? "");
+    setEditing(true);
+  };
+
+  const cancel = () => {
+    setDraft(note ?? "");
+    setEditing(false);
+  };
+
+  const save = async () => {
+    const next = draft.trim();
+    if (next === (note ?? "").trim()) {
+      setEditing(false);
+      return;
+    }
+    if (next.length > NOTE_MAX) {
+      onError(`备注最长 ${NOTE_MAX} 字`);
+      return;
+    }
+    setSaving(true);
+    try {
+      const r = await api.setNote(email, next);
+      onSaved(r.note);
+      setEditing(false);
+    } catch (e) {
+      onError(`${email}: ${(e as Error).message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <div className="note-edit" onClick={(e) => e.stopPropagation()}>
+        <input
+          ref={inputRef}
+          className="input note-input"
+          value={draft}
+          maxLength={NOTE_MAX}
+          disabled={saving}
+          placeholder="备注（用途 / 来源 / 归属…）"
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              void save();
+            }
+            if (e.key === "Escape") cancel();
+          }}
+        />
+        <button type="button" className="btn" disabled={saving} onClick={() => void save()}>
+          {saving ? "…" : "保存"}
+        </button>
+        <button type="button" className="btn" disabled={saving} onClick={cancel}>取消</button>
+        <span className="muted small">{draft.length}/{NOTE_MAX}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="note-view">
+      {note ? (
+        <button type="button" className="note-text" title="点击编辑备注" onClick={startEdit}>
+          {note}
+        </button>
+      ) : (
+        <button type="button" className="note-add" onClick={startEdit}>
+          添加备注
+        </button>
+      )}
+    </div>
+  );
 }
 
 export function Admin() {
@@ -171,13 +272,23 @@ export function Admin() {
           <table className="table mailbox-table">
             <thead>
               <tr>
-                <th>邮箱</th><th>client_id</th><th>access token</th><th>状态 / 最后错误</th><th>操作</th>
+                <th>邮箱</th><th>client_id</th><th>access token</th><th>状态 / 最后错误</th><th>导入时间</th><th>操作</th>
               </tr>
             </thead>
             <tbody>
               {boxes.map((b) => (
                 <tr key={b.email} className={b.lastError ? "has-error" : ""}>
-                  <td data-label="邮箱">{b.email}</td>
+                  <td data-label="邮箱">
+                    <div className="mailbox-email">{b.email}</div>
+                    <NoteEditor
+                      email={b.email}
+                      note={b.note}
+                      onError={setError}
+                      onSaved={(note) => {
+                        setBoxes((list) => list.map((x) => (x.email === b.email ? { ...x, note } : x)));
+                      }}
+                    />
+                  </td>
                   <td data-label="client_id" className="meta mono">{b.clientId}</td>
                   <td data-label="access token" className="meta">{b.hasAccessToken ? fmtTime(b.accessTokenExpiresAt) : "未获取"}</td>
                   <td data-label="状态" className="wrap">
@@ -186,6 +297,7 @@ export function Admin() {
                       {b.lastError && <div className="err-text">{b.lastError}</div>}
                     </div>
                   </td>
+                  <td data-label="导入时间" className="meta nowrap">{fmtImported(b.createdAt)}</td>
                   <td data-label="操作" className="acts">
                     {busy[b.email] ? (
                       <span className="muted">{busy[b.email]}</span>

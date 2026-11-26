@@ -61,7 +61,7 @@ function Picker({ onPick }: { onPick: (email: string) => void }) {
       {boxes.length > 0 && (
         <div className="table-wrap">
         <table className="table">
-          <thead><tr><th>已导入邮箱</th><th>状态</th></tr></thead>
+          <thead><tr><th>已导入邮箱</th><th>备注</th><th>状态</th></tr></thead>
           <tbody>
             {boxes.map((b) => (
               <tr key={b.email}>
@@ -71,6 +71,7 @@ function Picker({ onPick }: { onPick: (email: string) => void }) {
                     {b.email}
                   </a>
                 </td>
+                <td className="muted">{b.note || "—"}</td>
                 <td><span className={`tag ${b.status}`}>{b.status === "active" ? "正常" : "异常"}</span></td>
               </tr>
             ))}

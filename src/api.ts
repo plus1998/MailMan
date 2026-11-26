@@ -1,4 +1,12 @@
-import { countMailboxes, deleteMailbox, listMailboxes, toPublicMailbox } from "./db";
+import {
+  NOTE_MAX_LENGTH,
+  countMailboxes,
+  deleteMailbox,
+  getMailbox,
+  listMailboxes,
+  setMailboxNote,
+  toPublicMailbox,
+} from "./db";
 import { importMailboxes } from "./import";
 import { MailboxNotFoundError, fetchMessage, fetchMessages, forceRefresh } from "./mail-service";
 import { OutlookError } from "./outlook";
@@ -72,6 +80,20 @@ export async function handleApi(req: Request, url: URL): Promise<Response> {
       const deleted = deleteMailbox(email);
       if (!deleted) return json({ error: `邮箱不存在：${email}` }, 404);
       return json({ ok: true, email, deleted: true });
+    }
+
+    if (route === "PATCH /api/mailboxes/note") {
+      const body = (await req.json().catch(() => null)) as { email?: unknown; note?: unknown } | null;
+      const email = requireEmail(url, body);
+      if (body === null || !("note" in body)) return badRequest("请求体缺少 note（字符串，空字符串清除备注）");
+      if (typeof body.note !== "string") return badRequest("note 必须是字符串");
+      if (body.note.length > NOTE_MAX_LENGTH) {
+        return badRequest(`备注最长 ${NOTE_MAX_LENGTH} 字，当前 ${body.note.length}`);
+      }
+      const updated = setMailboxNote(email, body.note);
+      if (!updated) return json({ error: `邮箱不存在：${email}` }, 404);
+      const row = getMailbox(email);
+      return json({ ok: true, email, note: row?.note ?? null });
     }
 
     if (route === "GET /api/messages") {

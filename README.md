@@ -125,6 +125,7 @@ curl -s https://login.microsoftonline.com/common/oauth2/v2.0/token \
 | POST | `/api/mailboxes/import` | body `{ text, format?: "auto"\|"lines"\|"json", concurrency? }`，响应含实际 `format` |
 | POST | `/api/mailboxes/refresh?email=` | 强制刷新 access token |
 | DELETE | `/api/mailboxes?email=` | 删除邮箱 |
+| PATCH | `/api/mailboxes/note` | body `{ email, note }`，更新备注（空字符串清除；最长 200 字） |
 | GET | `/api/messages?email=&folder=Inbox&top=20&skip=0` | 邮件列表 |
 | GET | `/api/message?email=&id=` | 单封邮件正文 |
 
