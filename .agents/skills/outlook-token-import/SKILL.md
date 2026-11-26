@@ -19,6 +19,8 @@ compatibility: bun 1.x；内置浏览器 MCP（eco_agent_browser）或 Playwrigh
 
 **永远用 Thunderbird 的 client_id 走授权码 + PKCE 流程**，不要图省事直接抓 outlook.live.com 网页自己的 token。
 
+Mail Man 通过 Microsoft Graph 取信，授权必须申请 Graph 委托权限，例如 `https://graph.microsoft.com/Mail.Read offline_access`。旧的 `https://outlook.office.com/mail.read` 令牌面向另一个资源，不能满足 Graph 刷新。若当前客户端不接受只读 `Mail.Read`，不要自行改成 `Mail.ReadWrite`；它允许修改和删除邮件，需要用户明确同意。
+
 ## 1. 生成 PKCE 与 authorize URL
 
 ```bash

@@ -100,6 +100,8 @@ main { display: flex; flex-direction: column; gap: 16px; }
 /* client_id / token 过期时间：次要信息 */
 .meta, .mailbox-table td.meta { color: var(--muted); font-size: 12px; }
 .mailbox-table td.meta.mono { font-size: 12px; }
+.client-app { min-width: 0; }
+.mailbox-table .client-id { display: block; margin-top: 2px; overflow-wrap: anywhere; white-space: normal; }
 .table tbody tr:hover { background: #fafbfc; }
 .table tbody tr.selected { background: #eef4ff; }
 .table tbody tr { cursor: default; }

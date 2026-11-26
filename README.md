@@ -67,8 +67,7 @@ email----password----clientid----refreshtoken
 导入流程（`POST /api/mailboxes/import`，默认并发 4）：
 
 1. 解析并校验字段（email 格式、clientid / refreshtoken 非空），字段不足直接报错；
-2. 用 `refresh_token` 调 `https://login.microsoftonline.com/common/oauth2/v2.0/token`
-   （`scope=https://graph.microsoft.com/.default offline_access`，使用 OAuth 客户端已获授的 Graph 权限）；
+2. 用 `refresh_token` 调 `https://login.microsoftonline.com/common/oauth2/v2.0/token`，默认不传 `scope`，让微软沿用该 refresh token 已获授的权限；
 3. **换取失败 → 该行报错并跳过，不入库**（已存在的邮箱会被标记为异常并记录错误原因）；
 4. **换取成功 → 保存 access token（含过期时间）+ 微软轮换后的新 refresh token**；
 5. 结果逐行返回：`created` / `updated` / `error`（带微软 `error` 码与 `error_description`）。
@@ -91,7 +90,7 @@ https://login.microsoftonline.com/common/oauth2/v2.0/authorize
   ?client_id=9e5f94bc-e8a4-4e73-b8be-63364c29d753
   &response_type=code
   &redirect_uri=https://login.microsoftonline.com/common/oauth2/nativeclient
-  &scope=https://outlook.office.com/mail.read offline_access
+  &scope=https://graph.microsoft.com/Mail.Read offline_access
   &code_challenge=<S256>&code_challenge_method=S256
 ```
 

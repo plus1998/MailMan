@@ -6,8 +6,6 @@
 const TOKEN_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
 const API_BASE = "https://graph.microsoft.com/v1.0";
 
-// .default 使用客户端已获授的 Graph 权限，兼容 Mail.Read 和 Mail.ReadWrite。
-export const DEFAULT_SCOPE = "https://graph.microsoft.com/.default offline_access";
 export const DEFAULT_REDIRECT_URI = "https://login.microsoftonline.com/common/oauth2/token";
 
 export class OutlookError extends Error {
@@ -96,8 +94,10 @@ export async function refreshAccessToken(input: {
     refresh_token: input.refreshToken,
     client_id: input.clientId,
     redirect_uri: input.redirectUri ?? DEFAULT_REDIRECT_URI,
-    scope: input.scope ?? DEFAULT_SCOPE,
   });
+  // Reuse the delegated permissions granted with this refresh token. They vary
+  // by client and account; forcing Graph /.default can fail for public clients.
+  if (input.scope) form.set("scope", input.scope);
 
   let res: Response;
   try {

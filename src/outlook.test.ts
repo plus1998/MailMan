@@ -44,7 +44,7 @@ describe("refreshAccessToken", () => {
     expect(t.expiresAt).toBeGreaterThanOrEqual(before + 3599 * 1000);
   });
 
-  test("请求参数与 curl 一致", async () => {
+  test("默认刷新不指定 scope，沿用原授权", async () => {
     mockFetch((url, init) => {
       calls.push({ url: String(url), init: init ?? {} });
       return jsonResponse(TOKEN_OK);
@@ -57,17 +57,17 @@ describe("refreshAccessToken", () => {
     expect(form.get("client_id")).toBe("9e5f94bc-e8a4-4e73-b8be-63364c29d753");
     expect(form.get("refresh_token")).toBe("FAKE-RT-1");
     expect(form.get("redirect_uri")).toBe("https://login.microsoftonline.com/common/oauth2/token");
-    expect(form.get("scope")).toBe("https://graph.microsoft.com/.default offline_access");
+    expect(form.has("scope")).toBe(false);
   });
 
-  test("显式传 scope 时覆盖 Graph 默认 scope", async () => {
+  test("显式传 scope 时提交该授权范围", async () => {
     mockFetch((url, init) => {
       calls.push({ url: String(url), init: init ?? {} });
       return jsonResponse(TOKEN_OK);
     });
-    await refreshAccessToken({ clientId: "cid", refreshToken: "rt", scope: "https://outlook.office.com/Mail.ReadWrite" });
+    await refreshAccessToken({ clientId: "cid", refreshToken: "rt", scope: "https://graph.microsoft.com/Mail.ReadWrite" });
     const form = new URLSearchParams(String(calls[0]!.init.body));
-    expect(form.get("scope")).toBe("https://outlook.office.com/Mail.ReadWrite");
+    expect(form.get("scope")).toBe("https://graph.microsoft.com/Mail.ReadWrite");
   });
 
   test("失败：抛出微软的 error + error_description，不兜底", async () => {

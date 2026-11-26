@@ -5,11 +5,11 @@
  *
  * 用法：
  *   bun scripts/exchange.ts --code-file /tmp/mm_code.txt --key <pkce key> \
- *       --email <目标邮箱> [--password <pw>] [--import] [--verify] [--api http://localhost:3000]
+ *       --email <目标邮箱> [--scope <scopes>] [--password <pw>] [--import] [--verify] [--api http://localhost:3000]
  */
 const DEFAULT_CLIENT_ID = "9e5f94bc-e8a4-4e73-b8be-63364c29d753";
 const REDIRECT_URI = "https://login.microsoftonline.com/common/oauth2/nativeclient";
-const SCOPE = "https://outlook.office.com/mail.read offline_access";
+const SCOPE = "https://graph.microsoft.com/Mail.Read offline_access";
 const DIR = `${import.meta.dir}/../../../..`.replace(/\/+$/, "") + "/.mailman-oauth";
 
 function arg(name: string, fallback?: string): string | undefined {
@@ -26,6 +26,7 @@ const codeFile = arg("code-file");
 const key = arg("key");
 const email = arg("email");
 const clientId = arg("client-id", DEFAULT_CLIENT_ID)!;
+const scope = arg("scope", SCOPE)!;
 const api = arg("api", "http://localhost:3000")!;
 
 if (!codeFile) {
@@ -49,7 +50,7 @@ const form = new URLSearchParams({
   grant_type: "authorization_code",
   code,
   redirect_uri: REDIRECT_URI,
-  scope: SCOPE,
+  scope,
 });
 if (verifier) form.set("code_verifier", verifier);
 
@@ -70,7 +71,7 @@ if (!res.ok || body.error) {
 const rt = body.refresh_token ?? "";
 console.log("换 token 成功");
 console.log(`  scope      ${body.scope}`);
-console.log(`  expires_in ${body.expires_in}s  refresh_token ${rt.length} 字符 ${rt.slice(0, 12)}…${rt.slice(-8)}`);
+console.log(`  expires_in ${body.expires_in}s  refresh_token ${rt.length} 字符`);
 if (!rt) {
   console.error("响应里没有 refresh_token（scope 缺 offline_access？），无法长期保存");
   process.exit(1);

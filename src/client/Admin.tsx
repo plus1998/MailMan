@@ -15,6 +15,15 @@ const PLACEHOLDER_JSON = `// 单个对象 / 对象数组 / 每行一个 JSON 都
 
 const NOTE_MAX = 200;
 
+const OAUTH_CLIENT_NAMES: Record<string, string> = {
+  "9e5f94bc-e8a4-4e73-b8be-63364c29d753": "Mozilla Thunderbird",
+  "14d82eec-204b-4c2f-b7e8-296a70dab67e": "Microsoft Graph Command Line Tools",
+};
+
+function oauthClientName(clientId: string): string {
+  return OAUTH_CLIENT_NAMES[clientId] ?? "未知应用";
+}
+
 function fmtTime(ms: number | null): string {
   if (!ms) return "—";
   const d = new Date(ms);
@@ -272,7 +281,7 @@ export function Admin() {
           <table className="table mailbox-table">
             <thead>
               <tr>
-                <th>邮箱</th><th>client_id</th><th>access token</th><th>状态 / 最后错误</th><th>导入时间</th><th>操作</th>
+                <th>邮箱</th><th>授权应用</th><th>access token</th><th>状态 / 最后错误</th><th>导入时间</th><th>操作</th>
               </tr>
             </thead>
             <tbody>
@@ -289,7 +298,12 @@ export function Admin() {
                       }}
                     />
                   </td>
-                  <td data-label="client_id" className="meta mono">{b.clientId}</td>
+                  <td data-label="授权应用">
+                    <div className="client-app">
+                      <div>{oauthClientName(b.clientId)}</div>
+                      <div className="meta mono client-id" title={b.clientId}>{b.clientId || "缺少 client_id"}</div>
+                    </div>
+                  </td>
                   <td data-label="access token" className="meta">{b.hasAccessToken ? fmtTime(b.accessTokenExpiresAt) : "未获取"}</td>
                   <td data-label="状态" className="wrap">
                     <div className="cell">

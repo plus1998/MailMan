@@ -24,7 +24,7 @@ from playwright.sync_api import sync_playwright
 
 CLIENT_ID = "9e5f94bc-e8a4-4e73-b8be-63364c29d753"  # Mozilla Thunderbird（native）
 REDIRECT = "https://login.microsoftonline.com/common/oauth2/nativeclient"
-SCOPE = "https://outlook.office.com/mail.read offline_access"
+SCOPE = "https://graph.microsoft.com/Mail.Read offline_access"
 AUTH_BASE = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize"
 SKILL_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STATE_DIR = os.path.abspath(os.path.join(SKILL_DIR, "..", "..", "..", ".mailman-oauth"))
@@ -66,17 +66,24 @@ def visible(page, sel):
 
 
 def click_by_text(page, label):
-    return page.evaluate(
-        """(label) => {
-          const bs = [...document.querySelectorAll('button,input[type=submit],a')]
-            .filter(x => x.offsetParent !== null)
-            .filter(x => (x.value || x.textContent || '').trim() === label);
-          if (!bs.length) return false;
-          bs[0].click();
-          return true;
-        }""",
-        label,
-    )
+    try:
+        return page.evaluate(
+            """(label) => {
+              const bs = [...document.querySelectorAll('button,input[type=submit],a')]
+                .filter(x => x.offsetParent !== null)
+                .filter(x => (x.value || x.textContent || '').trim() === label);
+              if (!bs.length) return false;
+              bs[0].click();
+              return true;
+            }""",
+            label,
+        )
+    except Exception as e:
+        # Consent clicks navigate to nativeclient; Playwright can lose the old
+        # execution context before the next loop reads the redirect URL.
+        if "execution context was destroyed" in str(e).lower() or "navigation" in str(e).lower():
+            return True
+        raise
 
 
 def main():
@@ -85,6 +92,7 @@ def main():
     p.add_argument("--code-mailbox", help="已导入 Mail Man 的恢复邮箱，用于自动读验证码")
     p.add_argument("--api", default="http://localhost:3000")
     p.add_argument("--client-id", default=CLIENT_ID)
+    p.add_argument("--scope", default=SCOPE)
     p.add_argument("--import", action="store_true", dest="do_import")
     p.add_argument("--verify", action="store_true")
     p.add_argument("--timeout", type=int, default=240)
@@ -103,7 +111,8 @@ def main():
 
     url = f"{AUTH_BASE}?" + urllib.parse.urlencode({
         "client_id": a.client_id, "response_type": "code", "redirect_uri": REDIRECT,
-        "scope": SCOPE, "state": f"mailman-{key}", "client_info": "1",
+        "scope": a.scope, "state": f"mailman-{key}", "client_info": "1",
+        "login_hint": a.email,
         "code_challenge": challenge, "code_challenge_method": "S256",
     })
 
@@ -119,19 +128,29 @@ def main():
             href = page.url
             if "nativeclient" in href and "code=" in href:
                 code = urllib.parse.parse_qs(urllib.parse.urlparse(href).query).get("code", [None])[0]
-                log("拿到 code:", (code or "")[:16] + "…")
+                log("已收到授权码")
                 break
 
-            if visible(page, "#i0116"):
-                page.fill("#i0116", a.email)
-                page.click("#idSIButton9")
+            if visible(page, "#i0116") or visible(page, "input[name=loginfmt]"):
+                sel = "#i0116" if visible(page, "#i0116") else "input[name=loginfmt]"
+                page.fill(sel, a.email)
+                if visible(page, "#idSIButton9"):
+                    page.click("#idSIButton9")
+                elif not click_by_text(page, "下一步") and not click_by_text(page, "Next"):
+                    page.keyboard.press("Enter")
                 log("已提交邮箱")
-            elif visible(page, "#i0118"):
+            elif visible(page, "#i0118") or visible(page, "input[name=passwd]") or visible(page, "input[type=password]"):
                 if not pw:
                     log("到密码页了，但没设 MAILMAN_PW —— 请在窗口里手动输入")
                 else:
-                    page.fill("#i0118", pw)
-                    page.click("#idSIButton9")
+                    sel = "#i0118" if visible(page, "#i0118") else (
+                        "input[name=passwd]" if visible(page, "input[name=passwd]") else "input[type=password]"
+                    )
+                    page.fill(sel, pw)
+                    if visible(page, "#idSIButton9"):
+                        page.click("#idSIButton9")
+                    elif not click_by_text(page, "下一步") and not click_by_text(page, "Next") and not click_by_text(page, "登录"):
+                        page.keyboard.press("Enter")
                     log("已提交密码")
             elif visible(page, "#proofConfirmationText"):
                 if not a.code_mailbox:
@@ -153,7 +172,7 @@ def main():
                     if not got:
                         log("没从邮箱读到验证码，请在窗口里手动填")
                     else:
-                        log("验证码:", got)
+                        log("已填入验证码")
                         for sel in ("input[type=text]:not(#proofConfirmationText)", "input[type=number]", "input[type=tel]"):
                             el = visible(page, sel)
                             if el:
@@ -183,7 +202,8 @@ def main():
         f.write(code)
 
     cmd = ["bun", os.path.join(SKILL_DIR, "scripts", "exchange.ts"),
-           "--code-file", code_file, "--key", key, "--email", a.email, "--api", a.api]
+           "--code-file", code_file, "--key", key, "--email", a.email, "--api", a.api,
+           "--client-id", a.client_id, "--scope", a.scope]
     if a.do_import:
         cmd.append("--import")
     if a.verify:

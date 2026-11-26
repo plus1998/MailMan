@@ -9,7 +9,7 @@ import { mkdirSync } from "node:fs";
 
 const DEFAULT_CLIENT_ID = "9e5f94bc-e8a4-4e73-b8be-63364c29d753"; // Mozilla Thunderbird（native 公共客户端）
 const REDIRECT_URI = "https://login.microsoftonline.com/common/oauth2/nativeclient";
-const SCOPE = "https://outlook.office.com/mail.read offline_access";
+const SCOPE = "https://graph.microsoft.com/Mail.Read offline_access";
 const DIR = `${import.meta.dir}/../../../..`.replace(/\/+$/, "") + "/.mailman-oauth";
 
 function arg(name: string, fallback?: string): string | undefined {
